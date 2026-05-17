@@ -1,0 +1,12 @@
+requests
+pandas
+numpy
+pymongo
+python-dotenv
+scikit-learn
+xgboost
+lightgbm
+catboost
+shap
+matplotlib
+seaborn
