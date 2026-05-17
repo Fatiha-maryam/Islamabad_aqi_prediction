@@ -230,7 +230,7 @@ def run_feature_pipeline(start_date=None, end_date=None):
     if start_date is None:
         # Incremental: fetch last 8 hours (overlap buffer for safety)
         end_dt    = datetime.now()
-        start_dt  = end_dt - timedelta(hours=8)
+        start_dt  = end_dt - timedelta(hours=80)
         start_date = start_dt.strftime("%Y-%m-%d")
         end_date   = end_dt.strftime("%Y-%m-%d")
         print(f"Mode      : INCREMENTAL (last 8 hours with buffer)")
