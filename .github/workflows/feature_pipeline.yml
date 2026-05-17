@@ -1,0 +1,27 @@
+name: Feature Pipeline
+
+on:
+  schedule:
+    - cron: "0 */5 * * *"   # every 5 hours
+  workflow_dispatch:          # allow manual trigger
+
+jobs:
+  feature-pipeline:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run feature pipeline
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+        run: python src/feature_pipeline.py
