@@ -1,10 +1,11 @@
 """
-Training Pipeline: Load Features → Train Models → Select Best → Save
+Training Pipeline: Load Features → Train Models → Select Best → Register in MLflow
 Location: Islamabad AQI Prediction
 Runs: Once daily via GitHub Actions
 Horizons: 24h, 48h, 72h
 Models: XGBoost, LightGBM, CatBoost, RandomForest, StackingRegressor
 Selection: Best model per horizon based on MAE, RMSE, R² (majority wins)
+Registry: DagsHub MLflow Model Registry
 """
 
 import os
@@ -24,10 +25,18 @@ import xgboost as xgb
 import lightgbm as lgb
 from catboost import CatBoostRegressor
 
-warnings.filterwarnings('ignore')
+import mlflow
+import mlflow.sklearn
+import mlflow.xgboost
+import mlflow.lightgbm
+from mlflow.models.signature import infer_signature
+
+import dagshub
+
 from dotenv import load_dotenv
 load_dotenv()
 
+warnings.filterwarnings('ignore')
 
 # ============================================
 # CONFIGURATION
@@ -35,8 +44,13 @@ load_dotenv()
 FEATURE_COLS = [
     'lag1', 'lag2', 'lag3', 'lag6', 'lag12', 'lag24', 'lag48', 'lag72',
     'aqi_ma6', 'aqi_ma12', 'aqi_ma24', 'aqi_std12',
-    'hour', 'day_of_week', 'month',
-    'pm2_5', 'pm10', 'o3', 'temperature', 'wind_speed', 'rain_code'
+    'aqi_trend_3h', 'aqi_trend_6h', 'aqi_trend_24h',
+    'aqi_min_24h', 'aqi_max_24h', 'aqi_range_24h',
+    'pm2_5', 'pm10', 'pm25_lag24', 'pm25_ma12',
+    'hour_sin', 'hour_cos',
+    'season', 'is_rush_hour', 'is_smog_season',
+    'day_of_week', 'o3', 'no2', 'co',
+    'temperature', 'humidity', 'wind_speed', 'rain_code'
 ]
 
 HORIZONS = {
@@ -45,8 +59,26 @@ HORIZONS = {
     '72h': 'target_h72',
 }
 
-MODELS_DIR = "models"
+MODELS_DIR       = "models"
+DAGSHUB_USERNAME = os.environ.get("MLFLOW_TRACKING_USERNAME", "Fatiha-maryam")
+DAGSHUB_REPO     = "Islamabad_aqi_prediction"
+
 os.makedirs(MODELS_DIR, exist_ok=True)
+
+# ============================================
+# SETUP MLFLOW + DAGSHUB
+# ============================================
+def setup_mlflow():
+    """Initialize DagsHub and MLflow tracking"""
+
+    dagshub.init(
+        repo_owner=DAGSHUB_USERNAME,
+        repo_name=DAGSHUB_REPO,
+        mlflow=True
+    )
+
+    print(f"  MLflow tracking URI: {mlflow.get_tracking_uri()}")
+    print("   MLflow + DagsHub connected")
 
 # ============================================
 # MONGODB — LOAD FEATURES
@@ -70,6 +102,12 @@ def load_features_from_mongodb():
     df = df.sort_values('datetime').reset_index(drop=True)
 
     print(f"  Loaded {len(df)} rows from MongoDB")
+
+    # Only use rows where all targets are available
+    df = df.dropna(subset=['target_h24', 'target_h48', 'target_h72'])
+    df = df.reset_index(drop=True)
+
+    print(f"  After removing incomplete targets: {len(df)} rows")
     print(f"  Date range: {df['datetime'].min()} → {df['datetime'].max()}")
     return df
 
@@ -155,61 +193,42 @@ def evaluate_model(y_true, y_pred, model_name, horizon):
 # SELECT BEST MODEL — MAJORITY VOTE
 # ============================================
 def select_best_model(results_df):
-    """
-    Select best model using majority vote across 3 metrics:
-
-    Rules:
-    - Lowest MAE  → 1 point
-    - Lowest RMSE → 1 point
-    - Highest R²  → 1 point
-
-    If one model wins 2 or 3 out of 3 → selected
-    If tie in points → lowest MAE breaks the tie
-    If R² is negative for all models → ignore R², decide by MAE + RMSE only
-    """
+    """Select best model using majority vote across MAE, RMSE, R²"""
 
     scores = {model: 0 for model in results_df['model']}
 
-    # Rule 1: Lowest MAE wins
-    best_mae_model = results_df.loc[results_df['mae'].idxmin(), 'model']
-    scores[best_mae_model] += 1
-
-    # Rule 2: Lowest RMSE wins
+    best_mae_model  = results_df.loc[results_df['mae'].idxmin(),  'model']
     best_rmse_model = results_df.loc[results_df['rmse'].idxmin(), 'model']
+    scores[best_mae_model]  += 1
     scores[best_rmse_model] += 1
 
-    # Rule 3: Highest R² wins — only if at least one model has R² > 0
     if results_df['r2'].max() > 0:
         best_r2_model = results_df.loc[results_df['r2'].idxmax(), 'model']
         scores[best_r2_model] += 1
-        print(f"\n    Metric Winners:")
+        print(f"\n     Metric Winners:")
         print(f"       Lowest MAE  → {best_mae_model}")
         print(f"       Lowest RMSE → {best_rmse_model}")
         print(f"       Highest R²  → {best_r2_model}")
     else:
-        # All R² negative — skip R² metric
-        print(f"\n    Metric Winners:")
+        print(f"\n     Metric Winners:")
         print(f"       Lowest MAE  → {best_mae_model}")
         print(f"       Lowest RMSE → {best_rmse_model}")
         print(f"       Highest R²  → skipped (all negative)")
 
-    print(f"\n   Scores: {scores}")
+    print(f"\n     Scores: {scores}")
 
-    # Find max score
     max_score  = max(scores.values())
     top_models = [m for m, s in scores.items() if s == max_score]
 
     if len(top_models) == 1:
-        # Clear winner
         best_name = top_models[0]
     else:
-        # Tie — break by lowest MAE
-        print(f"  Tie between: {top_models} — breaking by lowest MAE")
+        print(f"      Tie between: {top_models} — breaking by lowest MAE")
         tied_df   = results_df[results_df['model'].isin(top_models)]
         best_name = tied_df.loc[tied_df['mae'].idxmin(), 'model']
 
     best_metrics = results_df[results_df['model'] == best_name].iloc[0]
-    print(f"\n  BEST MODEL: {best_name} "
+    print(f"\n     BEST MODEL: {best_name} "
           f"(Score: {max_score}/3 | MAE: {best_metrics['mae']} | "
           f"RMSE: {best_metrics['rmse']} | R²: {best_metrics['r2']})")
 
@@ -219,14 +238,22 @@ def select_best_model(results_df):
 # SAVE FEATURE IMPORTANCE PLOT
 # ============================================
 def save_feature_importance(model, model_name, horizon):
-    """Save feature importance plot for tree-based models"""
+    """Save feature importance plot"""
 
     try:
+        importances = None
+
         if hasattr(model, 'feature_importances_'):
             importances = model.feature_importances_
-        else:
-            print(f"  {model_name} has no feature importances — skipping plot")
-            return
+        elif hasattr(model, 'estimators_'):
+            for est in model.estimators_:
+                if hasattr(est, 'feature_importances_'):
+                    importances = est.feature_importances_
+                    break
+
+        if importances is None:
+            print(f"   {model_name} has no feature importances — skipping plot")
+            return None
 
         fi_df = pd.DataFrame({
             'feature':    FEATURE_COLS,
@@ -242,19 +269,21 @@ def save_feature_importance(model, model_name, horizon):
         path = f"{MODELS_DIR}/feature_importance_{horizon}.png"
         plt.savefig(path, dpi=100, bbox_inches='tight')
         plt.close()
-        print(f" Saved feature importance → {path}")
+        print(f"   Saved feature importance → {path}")
+        return path
 
     except Exception as e:
-        print(f"  Could not save feature importance: {e}")
+        print(f"    Could not save feature importance: {e}")
+        return None
 
 # ============================================
-# TRAIN ALL MODELS FOR ONE HORIZON
+# TRAIN + LOG TO MLFLOW
 # ============================================
-def train_horizon(train, test, horizon_name, target_col):
-    """Train all models for one horizon, select best by majority vote"""
+def train_and_log_horizon(train, test, horizon_name, target_col):
+    """Train all models, log to MLflow, select best, register in registry"""
 
     print(f"\n  {'─'*55}")
-    print(f" Horizon: {horizon_name}")
+    print(f"   Horizon: {horizon_name}")
     print(f"  {'─'*55}")
 
     X_train = train[FEATURE_COLS]
@@ -265,37 +294,92 @@ def train_horizon(train, test, horizon_name, target_col):
     models  = get_models()
     results = []
     trained = {}
+    run_ids = {}
 
+    # Train each model and log to MLflow
     for model_name, model in models.items():
         try:
-            print(f"\n  Training {model_name}...")
-            model.fit(X_train, y_train)
-            y_pred  = model.predict(X_test)
-            metrics = evaluate_model(y_test, y_pred, model_name, horizon_name)
-            results.append(metrics)
-            trained[model_name] = model
+            print(f"\n     Training {model_name}...")
+
+            with mlflow.start_run(run_name=f"{model_name}_{horizon_name}") as run:
+
+                # Log parameters
+                mlflow.log_param("model_name",  model_name)
+                mlflow.log_param("horizon",     horizon_name)
+                mlflow.log_param("train_size",  len(X_train))
+                mlflow.log_param("test_size",   len(X_test))
+                mlflow.log_param("n_features",  len(FEATURE_COLS))
+                mlflow.log_param("trained_at",  datetime.now().strftime('%Y-%m-%d %H:%M'))
+
+                # Train
+                model.fit(X_train, y_train)
+                y_pred = model.predict(X_test)
+
+                # Evaluate
+                metrics = evaluate_model(y_test, y_pred, model_name, horizon_name)
+
+                # Log metrics to MLflow
+                mlflow.log_metric("mae",  metrics['mae'])
+                mlflow.log_metric("rmse", metrics['rmse'])
+                mlflow.log_metric("r2",   metrics['r2'])
+
+                results.append(metrics)
+                trained[model_name] = model
+                run_ids[model_name] = run.info.run_id
 
         except Exception as e:
-            print(f" {model_name} failed: {e}")
+            print(f"  {model_name} failed: {e}")
 
-    # Select best model by majority vote
+    # Select best model
     results_df = pd.DataFrame(results)
     best_name  = select_best_model(results_df)
     best_model = trained[best_name]
 
-    # Save feature importance for best model
-    save_feature_importance(best_model, best_name, horizon_name)
+    # Save feature importance
+    fi_path = save_feature_importance(best_model, best_name, horizon_name)
+
+    # Register best model in MLflow Model Registry
+    print(f"\n Registering best model in MLflow Registry...")
+
+    registry_name = f"aqi_model_{horizon_name}"
+
+    with mlflow.start_run(run_name=f"BEST_{horizon_name}_{best_name}") as run:
+
+        mlflow.log_param("model_name",  best_name)
+        mlflow.log_param("horizon",     horizon_name)
+        mlflow.log_param("feature_cols", str(FEATURE_COLS))
+        mlflow.log_param("trained_at",  datetime.now().strftime('%Y-%m-%d %H:%M'))
+
+        best_metrics = results_df[results_df['model'] == best_name].iloc[0]
+        mlflow.log_metric("mae",  best_metrics['mae'])
+        mlflow.log_metric("rmse", best_metrics['rmse'])
+        mlflow.log_metric("r2",   best_metrics['r2'])
+
+        # Log feature importance plot
+        if fi_path:
+            mlflow.log_artifact(fi_path)
+
+        # Log model
+        signature = infer_signature(X_train, best_model.predict(X_train))
+        mlflow.sklearn.log_model(
+            best_model,
+            artifact_path="model",
+            signature=signature,
+            registered_model_name=registry_name,
+        )
+
+        print(f" Registered as '{registry_name}' in MLflow Registry")
+
+    # Also save locally as .pkl backup
+    save_model_locally(best_model, horizon_name, best_name)
 
     return best_model, best_name, results_df
 
 # ============================================
-# SAVE MODEL — OVERWRITES PREVIOUS DAILY
+# SAVE MODEL LOCALLY AS BACKUP
 # ============================================
-def save_model(model, horizon_name, model_name):
-    """
-    Save best model as .pkl — overwrites previous model.
-    Every daily run replaces old model with new best model.
-    """
+def save_model_locally(model, horizon_name, model_name):
+    """Save best model as .pkl backup"""
 
     path = f"{MODELS_DIR}/best_model_{horizon_name}.pkl"
 
@@ -308,7 +392,7 @@ def save_model(model, horizon_name, model_name):
             'trained_at':   datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
         }, f)
 
-    print(f"Saved → {path}  (overwrites previous)")
+    print(f" Saved local backup → {path}")
     return path
 
 # ============================================
@@ -322,11 +406,18 @@ def run_training_pipeline():
     print("="*60)
     print(f"Started at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
-    # Step 1: Load features from MongoDB
+    # Setup MLflow
+    print("\n[0/4] Setting up MLflow + DagsHub...")
+    setup_mlflow()
+
+    # Set experiment name
+    mlflow.set_experiment("Islamabad_AQI_Prediction")
+
+    # Step 1: Load features
     print("\n[1/4] Loading features from MongoDB...")
     df = load_features_from_mongodb()
 
-    # Step 2: Train/test split
+    # Step 2: Split data
     print("\n[2/4] Splitting data (80% train / 20% test)...")
     train, test = split_data(df, test_size=0.2)
 
@@ -336,25 +427,20 @@ def run_training_pipeline():
     best_models = {}
 
     for horizon_name, target_col in HORIZONS.items():
-        best_model, best_name, results_df = train_horizon(
+        best_model, best_name, results_df = train_and_log_horizon(
             train, test, horizon_name, target_col
         )
         all_metrics.append(results_df)
         best_models[horizon_name] = (best_model, best_name)
 
-    # Step 4: Save everything
-    print("\n[4/4] Saving models and metrics...")
-
-    for horizon_name, (model, name) in best_models.items():
-        save_model(model, horizon_name, name)
-
-    # Save all metrics to CSV — overwrites previous
+    # Step 4: Save metrics CSV
+    print("\n[4/4] Saving evaluation metrics...")
     metrics_df   = pd.concat(all_metrics, ignore_index=True)
     metrics_path = f"{MODELS_DIR}/evaluation_metrics.csv"
     metrics_df.to_csv(metrics_path, index=False)
-    print(f"Saved metrics → {metrics_path}  (overwrites previous)")
+    print(f" Saved metrics → {metrics_path}")
 
-    # Final summary table
+    # Final summary
     print("\n" + "="*60)
     print("TRAINING PIPELINE COMPLETED SUCCESSFULLY")
     print("="*60)
@@ -371,6 +457,7 @@ def run_training_pipeline():
               f"{h_df['mae']:>8.2f} | {h_df['rmse']:>8.2f} | {h_df['r2']:>8.3f}")
 
     print("="*60)
+    print(f"\n View experiments: https://dagshub.com/{DAGSHUB_USERNAME}/{DAGSHUB_REPO}")
     print(f"Finished at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print("="*60)
 
