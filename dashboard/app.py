@@ -3,8 +3,6 @@ Islamabad AQI Prediction Dashboard
 Light-Dark Theme with Yellow/Gold Accents – Professional & Modern
 """
 import os
-os.environ["PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION"] = "python"
-
 import warnings
 import pandas as pd
 import numpy as np
