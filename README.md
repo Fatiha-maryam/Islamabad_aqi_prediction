@@ -46,7 +46,6 @@ For each horizon (`24h`, `48h`, `72h`) we train and compare:
 
 > Metrics are updated daily after each training run.
 
----
 
 ##  Repository Structure
 
@@ -61,9 +60,9 @@ For each horizon (`24h`, `48h`, `72h`) we train and compare:
 │   └── training_pipeline.py    # load data, train models, register best in MLflow
 ├── models/                     # local backups (ignored by git)
 ├── requirements.txt            # all Python dependencies
-└── README.md
+└── README.md 
+```
 
----
 
 ##  Features Engineered
 
@@ -82,8 +81,6 @@ For each hour, the pipeline creates:
 
 All features are stored in **MongoDB Atlas** (one row per hour) and served to the training pipeline.
 
----
-
 ##  How to Run Locally
 
 ```bash
@@ -100,42 +97,38 @@ MLFLOW_TRACKING_USERNAME=Fatiha-maryam
 MLFLOW_TRACKING_PASSWORD=your_dagshub_token
 
 # 4. Run the dashboard
-streamlit run dashboard/app.py
+streamlit run dashboard/app.py 
+```
 
-Automated Pipelines (GitHub Actions)
-Feature pipeline: runs every 5 hours (schedule 0 */5 * * *). Fetches the last 4 days of data, engineers features, and inserts new rows into MongoDB.
 
-Training pipeline: runs daily at 02:00 UTC. Loads all historical features, trains models, selects the best per horizon, and registers them in DagsHub MLflow.
+##  Automated Pipelines (GitHub Actions)
+
+- **Feature pipeline**: runs every 5 hours (schedule `0 */5 * * *`). Fetches the last 4 days of data, engineers features, and inserts new rows into MongoDB.
+- **Training pipeline**: runs daily at 02:00 UTC. Loads all historical features, trains models, selects the best per horizon, and registers them in DagsHub MLflow.
 
 Both can also be triggered manually via the GitHub Actions UI.
 
-## Dashboard Features
-Current AQI – most recent hourly reading
+##  Dashboard Features
 
-24h / 48h / 72h forecasts – using the latest registered models
+- **Current AQI** – most recent hourly reading
+- **24h / 48h / 72h forecasts** – using the latest registered models
+- **Health alerts** – colour‑coded AQI categories and recommendations
+- **7‑day trend chart** – historical AQI with prediction markers
+- **Model performance table** – best model per horizon (MAE, RMSE, R²)
+- **MAE comparison bar chart** – all models side‑by‑side
+- **Feature importance** – bar plots for each horizon
 
-Health alerts – colour‑coded AQI categories and recommendations
+##  Notes
 
-7‑day trend chart – historical AQI with prediction markers
+- The dashboard loads the **latest model version** (`latest`) from DagsHub MLflow, so it always uses the most recent retrained model.
+- MongoDB stores all historical features – no data is lost.
+- All secrets (MongoDB URI, DagsHub token) are stored as GitHub Actions secrets and Streamlit Cloud secrets – never hard‑coded.
 
-Model performance table – best model per horizon (MAE, RMSE, R²)
+##  Author
 
-MAE comparison bar chart – all models side‑by‑side
-
-Feature importance – bar plots for each horizon
-
-## Notes
-The dashboard loads the latest model version (latest) from DagsHub MLflow, so it always uses the most recent retrained model.
-
-MongoDB stores all historical features – no data is lost.
-
-All secrets (MongoDB URI, DagsHub token) are stored as GitHub.
-
-Author
-Fatiha Maryam
-LinkedIn : www.linkedin.com/in/fatiha-maryam
+**Fatiha Maryam**  
+[GitHub](https://github.com/Fatiha-maryam) · [LinkedIn](https://www.linkedin.com/in/fatiha-maryam)
 
 ## License
+
 This project is for internship / academic evaluation. All rights reserved.
-
-
