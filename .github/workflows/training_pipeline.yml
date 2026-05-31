@@ -23,6 +23,15 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Verify MLflow secrets
+        env:
+          MLFLOW_TRACKING_USERNAME: ${{ secrets.MLFLOW_TRACKING_USERNAME }}
+          MLFLOW_TRACKING_PASSWORD: ${{ secrets.MLFLOW_TRACKING_PASSWORD }}
+        run: |
+          echo "Username length: ${#MLFLOW_TRACKING_USERNAME}"
+          echo "Password length: ${#MLFLOW_TRACKING_PASSWORD}"
+          echo "URI: $MLFLOW_TRACKING_URI"
+
       - name: Run training pipeline
         env:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
