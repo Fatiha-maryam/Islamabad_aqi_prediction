@@ -68,16 +68,26 @@ os.makedirs(MODELS_DIR, exist_ok=True)
 # SETUP MLFLOW + DAGSHUB
 # ============================================
 def setup_mlflow():
-    """MLflow reads MLFLOW_TRACKING_URI, USERNAME, PASSWORD automatically"""
+    uri      = os.environ.get("MLFLOW_TRACKING_URI", "")
+    username = os.environ.get("MLFLOW_TRACKING_USERNAME", "")
+    password = os.environ.get("MLFLOW_TRACKING_PASSWORD", "")
 
-    # These are already set by GitHub Actions yml or .env locally
-    # MLflow reads them automatically — no extra setup needed!
-    uri = os.environ.get("MLFLOW_TRACKING_URI", "")
     if not uri:
         raise ValueError("MLFLOW_TRACKING_URI not set!")
+    if not username:
+        raise ValueError("MLFLOW_TRACKING_USERNAME not set!")
+    if not password:
+        raise ValueError("MLFLOW_TRACKING_PASSWORD not set!")
+
+    # Explicitly set all three env vars
+    os.environ["MLFLOW_TRACKING_URI"]      = uri
+    os.environ["MLFLOW_TRACKING_USERNAME"] = username
+    os.environ["MLFLOW_TRACKING_PASSWORD"] = password
 
     mlflow.set_tracking_uri(uri)
-    print(f"  MLflow tracking URI set")
+    print(f"  MLflow URI set: {uri}")
+    print(f"  Username: {username}")
+    print(f"  Password length: {len(password)}")
 
 # ============================================
 # MONGODB — LOAD FEATURES
