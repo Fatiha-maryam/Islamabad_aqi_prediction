@@ -68,25 +68,20 @@ os.makedirs(MODELS_DIR, exist_ok=True)
 # SETUP MLFLOW + DAGSHUB
 # ============================================
 def setup_mlflow():
-    """Initialize DagsHub and MLflow tracking using token auth"""
+    """Initialize MLflow with DagsHub using basic auth in URI"""
 
-    # Use environment variables directly — no browser OAuth
-    mlflow_uri      = os.environ.get("MLFLOW_TRACKING_URI")
     mlflow_username = os.environ.get("MLFLOW_TRACKING_USERNAME")
     mlflow_password = os.environ.get("MLFLOW_TRACKING_PASSWORD")
 
-    if not all([mlflow_uri, mlflow_username, mlflow_password]):
-        raise ValueError("MLflow credentials not set in environment variables!")
+    if not all([mlflow_username, mlflow_password]):
+        raise ValueError("MLflow credentials not set!")
 
-    # Set MLflow tracking URI directly
-    mlflow.set_tracking_uri(mlflow_uri)
+    # Embed credentials directly in tracking URI
+    tracking_uri = f"https://{mlflow_username}:{mlflow_password}@dagshub.com/{mlflow_username}/Islamabad_aqi_prediction.mlflow"
 
-    # Set credentials
-    os.environ["MLFLOW_TRACKING_USERNAME"] = mlflow_username
-    os.environ["MLFLOW_TRACKING_PASSWORD"] = mlflow_password
+    mlflow.set_tracking_uri(tracking_uri)
 
-    print(f"  MLflow tracking URI: {mlflow_uri}")
-    print("   MLflow connected via token auth")
+    print(f" MLflow connected to DagsHub")
 
 # ============================================
 # MONGODB — LOAD FEATURES
