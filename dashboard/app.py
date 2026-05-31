@@ -14,6 +14,8 @@ import plotly.express as px
 from datetime import datetime, timedelta
 from pymongo import MongoClient
 from dotenv import load_dotenv
+import mlflow
+import dagshub
 
 load_dotenv()
 warnings.filterwarnings('ignore')
@@ -212,18 +214,60 @@ def load_recent_trend(days=7):
 @st.cache_data(ttl=3600)
 def load_metrics():
     try:
-        return pd.read_csv("models/evaluation_metrics.csv")
-    except:
+        import mlflow
+        client = mlflow.tracking.MlflowClient()
+        runs = client.search_runs(
+            experiment_names=["Islamabad_AQI_Prediction"],
+            order_by=["start_time DESC"],
+            max_results=15
+        )
+        records = []
+        for run in runs:
+            name = run.data.params.get("model_name", "")
+            horizon = run.data.params.get("horizon", "")
+            mae  = run.data.metrics.get("mae")
+            rmse = run.data.metrics.get("rmse")
+            r2   = run.data.metrics.get("r2")
+            if name and horizon and mae:
+                records.append({
+                    'model':   name,
+                    'horizon': horizon,
+                    'mae':     mae,
+                    'rmse':    rmse,
+                    'r2':      r2
+                })
+        return pd.DataFrame(records) if records else None
+    except Exception as e:
+        print(f"Could not load metrics: {e}")
         return None
 
 @st.cache_resource
 def load_models():
+    """Load models from DagsHub MLflow Registry"""
+    try:
+        import dagshub
+        dagshub.init(
+            repo_owner="Fatiha-maryam",
+            repo_name="Islamabad_aqi_prediction",
+            mlflow=True
+        )
+    except Exception as e:
+        print(f"DagsHub init error: {e}")
+
     models = {}
     for horizon in ['24h', '48h', '72h']:
         try:
-            with open(f"models/best_model_{horizon}.pkl", 'rb') as f:
-                models[horizon] = pickle.load(f)
-        except:
+            model_uri = f"models:/aqi_model_{horizon}/latest"
+            loaded    = mlflow.sklearn.load_model(model_uri)
+            models[horizon] = {
+                'model':        loaded,
+                'model_name':   f"aqi_model_{horizon}",
+                'horizon':      horizon,
+                'feature_cols': FEATURE_COLS,
+            }
+            print(f"  Loaded aqi_model_{horizon} from DagsHub")
+        except Exception as e:
+            print(f"  Failed to load aqi_model_{horizon}: {e}")
             models[horizon] = None
     return models
 
@@ -235,10 +279,15 @@ def make_predictions(models, latest_data):
         return {h: None for h in ['24h', '48h', '72h']}
 
     FEATURE_COLS = [
-        'lag1', 'lag2', 'lag3', 'lag6', 'lag12', 'lag24', 'lag48', 'lag72',
-        'aqi_ma6', 'aqi_ma12', 'aqi_ma24', 'aqi_std12',
-        'hour', 'day_of_week', 'month',
-        'pm2_5', 'pm10', 'o3', 'temperature', 'wind_speed', 'rain_code'
+         'lag1', 'lag2', 'lag3', 'lag6', 'lag12', 'lag24', 'lag48', 'lag72',
+         'aqi_ma6', 'aqi_ma12', 'aqi_ma24', 'aqi_std12',
+         'aqi_trend_3h', 'aqi_trend_6h', 'aqi_trend_24h',
+         'aqi_min_24h', 'aqi_max_24h', 'aqi_range_24h',
+         'pm2_5', 'pm10', 'pm25_lag24', 'pm25_ma12',
+         'hour_sin', 'hour_cos',
+         'season', 'is_rush_hour', 'is_smog_season',
+         'day_of_week', 'o3', 'no2', 'co',
+         'temperature', 'humidity', 'wind_speed', 'rain_code'
     ]
 
     predictions = {}
@@ -264,6 +313,17 @@ PLOTLY_DARK = dict(
     yaxis=dict(gridcolor='#1e2d4a', linecolor='#1e2d4a'),
     margin=dict(l=20, r=20, t=40, b=20),
 )
+FEATURE_COLS = [
+    'lag1', 'lag2', 'lag3', 'lag6', 'lag12', 'lag24', 'lag48', 'lag72',
+    'aqi_ma6', 'aqi_ma12', 'aqi_ma24', 'aqi_std12',
+    'aqi_trend_3h', 'aqi_trend_6h', 'aqi_trend_24h',
+    'aqi_min_24h', 'aqi_max_24h', 'aqi_range_24h',
+    'pm2_5', 'pm10', 'pm25_lag24', 'pm25_ma12',
+    'hour_sin', 'hour_cos',
+    'season', 'is_rush_hour', 'is_smog_season',
+    'day_of_week', 'o3', 'no2', 'co',
+    'temperature', 'humidity', 'wind_speed', 'rain_code'
+]
 
 # ============================================
 # MAIN

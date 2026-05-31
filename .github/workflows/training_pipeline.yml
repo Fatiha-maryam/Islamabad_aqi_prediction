@@ -30,11 +30,3 @@ jobs:
           MLFLOW_TRACKING_USERNAME: ${{ secrets.MLFLOW_TRACKING_USERNAME }}
           MLFLOW_TRACKING_PASSWORD: ${{ secrets.MLFLOW_TRACKING_PASSWORD }}
         run: python src/training_pipeline.py
-
-      - name: Save models to repository
-        run: |
-          git config user.email "github-actions@github.com"
-          git config user.name "GitHub Actions"
-          git add models/
-          git diff --staged --quiet || git commit -m "Update models - $(date +'%Y-%m-%d')"
-          git push
