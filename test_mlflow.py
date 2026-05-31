@@ -1,27 +1,14 @@
 import os
+import dagshub
 import mlflow
-from dotenv import load_dotenv
-load_dotenv()
 
-uri      = os.environ.get("MLFLOW_TRACKING_URI", "")
-username = os.environ.get("MLFLOW_TRACKING_USERNAME", "")
-password = os.environ.get("MLFLOW_TRACKING_PASSWORD", "")
+# --- IMPORTANT: Replace these with your actual credentials for this test ---
+os.environ["MLFLOW_TRACKING_USERNAME"] = "Fatiha-maryam"
+os.environ["MLFLOW_TRACKING_PASSWORD"] = "797e3df3a4c2d01d9c002788c93d9a7990c18257"
 
-print(f"URI: {uri}")
-print(f"Username: {username}")
-print(f"Password length: {len(password)}")
+# Initialize DagsHub and MLflow
+dagshub.init(repo_owner="Fatiha-maryam", repo_name="Islamabad_aqi_prediction", mlflow=True)
 
-# Explicitly set all three
-os.environ["MLFLOW_TRACKING_URI"]      = uri
-os.environ["MLFLOW_TRACKING_USERNAME"] = username
-os.environ["MLFLOW_TRACKING_PASSWORD"] = password
-
-mlflow.set_tracking_uri(uri)
-
-try:
-    mlflow.set_experiment("Islamabad_AQI_Prediction")
-    with mlflow.start_run(run_name="test_run"):
-        mlflow.log_metric("test_metric", 1.0)
-    print(" Full MLflow test passed!")
-except Exception as e:
-    print(f" Error: {e}")
+# Test the connection by setting an experiment
+mlflow.set_experiment("connection_test")
+print(" Authentication successful! Local test passed.")

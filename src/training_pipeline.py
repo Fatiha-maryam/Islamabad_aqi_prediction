@@ -24,7 +24,7 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 import xgboost as xgb
 import lightgbm as lgb
 from catboost import CatBoostRegressor
-
+import dagshub
 import mlflow
 import mlflow.sklearn
 import mlflow.xgboost
@@ -68,26 +68,18 @@ os.makedirs(MODELS_DIR, exist_ok=True)
 # SETUP MLFLOW + DAGSHUB
 # ============================================
 def setup_mlflow():
-    uri      = os.environ.get("MLFLOW_TRACKING_URI", "")
-    username = os.environ.get("MLFLOW_TRACKING_USERNAME", "")
-    password = os.environ.get("MLFLOW_TRACKING_PASSWORD", "")
+    """Initialize MLflow with DagsHub using the official client."""
 
-    if not uri:
-        raise ValueError("MLFLOW_TRACKING_URI not set!")
-    if not username:
-        raise ValueError("MLFLOW_TRACKING_USERNAME not set!")
-    if not password:
-        raise ValueError("MLFLOW_TRACKING_PASSWORD not set!")
+    username = os.environ.get("MLFLOW_TRACKING_USERNAME")
+    token = os.environ.get("MLFLOW_TRACKING_PASSWORD")
+    
+    if not username or not token:
+        raise ValueError("MLflow credentials not set in environment variables!")
 
-    # Explicitly set all three env vars
-    os.environ["MLFLOW_TRACKING_URI"]      = uri
-    os.environ["MLFLOW_TRACKING_USERNAME"] = username
-    os.environ["MLFLOW_TRACKING_PASSWORD"] = password
-
-    mlflow.set_tracking_uri(uri)
-    print(f"  MLflow URI set: {uri}")
-    print(f"  Username: {username}")
-    print(f"  Password length: {len(password)}")
+    # This single line does everything: sets the tracking URI and handles auth
+    dagshub.init(repo_owner=username, repo_name="Islamabad_aqi_prediction", mlflow=True)
+    
+    print(f" MLflow tracking URI set to: {mlflow.get_tracking_uri()}")
 
 # ============================================
 # MONGODB — LOAD FEATURES
