@@ -68,20 +68,15 @@ os.makedirs(MODELS_DIR, exist_ok=True)
 # SETUP MLFLOW + DAGSHUB
 # ============================================
 def setup_mlflow():
-    """Initialize MLflow with DagsHub using token authentication (no browser)."""
     import dagshub
     import mlflow
-    username = os.environ.get("MLFLOW_TRACKING_USERNAME")
-    token = os.environ.get("MLFLOW_TRACKING_PASSWORD")
+    username = os.environ.get("MLFLOW_TRACKING_USERNAME", "").strip()
+    token = os.environ.get("MLFLOW_TRACKING_PASSWORD", "").strip()
     if not username or not token:
         raise ValueError("MLflow credentials not set in environment variables!")
 
-    # 1. Add the app token explicitly
     dagshub.auth.add_app_token(token=token)
-
-    # 2. Now initialize – this will use the token, not OAuth
     dagshub.init(repo_owner=username, repo_name="Islamabad_aqi_prediction", mlflow=True)
-
     print(f" MLflow tracking URI set to: {mlflow.get_tracking_uri()}")
 
 # ============================================
