@@ -437,7 +437,7 @@ def main():
 
     # --- AQI Cards ---
     if latest_data:
-        latest_dt = utc_to_local(latest_data['datetime'])
+        latest_dt = pd.to_datetime(latest_data['datetime'])
     else:
         latest_dt = datetime.now()
     current_aqi = latest_data.get('lag1') if latest_data else None
