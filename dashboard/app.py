@@ -2,6 +2,8 @@
 Islamabad AQI Prediction Dashboard
 Light-Dark Theme with Yellow/Gold Accents – Professional & Modern
 """
+import pytz
+from datetime import datetime
 import os
 import warnings
 import pandas as pd
@@ -15,6 +17,13 @@ from dotenv import load_dotenv
 import mlflow
 from mlflow.tracking import MlflowClient
 import dagshub
+
+def utc_to_local(utc_str):
+    # utc_str format: "2026-06-02 23:00:00"
+    utc_time = datetime.strptime(utc_str, "%Y-%m-%d %H:%M:%S")
+    utc_time = utc_time.replace(tzinfo=pytz.UTC)
+    local_time = utc_time.astimezone(pytz.timezone("Asia/Karachi"))
+    return local_time
 
 load_dotenv()
 warnings.filterwarnings('ignore')
@@ -428,7 +437,7 @@ def main():
 
     # --- AQI Cards ---
     if latest_data:
-        latest_dt = pd.to_datetime(latest_data['datetime'])
+        latest_dt = utc_to_local(latest_data['datetime'])
     else:
         latest_dt = datetime.now()
     current_aqi = latest_data.get('lag1') if latest_data else None
