@@ -46,7 +46,14 @@ def get_mongo_collection():
     if not mongo_uri:
         raise ValueError("MONGODB_URI environment variable not set!")
 
-    client     = MongoClient(mongo_uri)
+    #  Only change: add timeouts 
+    client = MongoClient(
+        mongo_uri,
+        serverSelectionTimeoutMS=60000,   # 60 seconds
+        connectTimeoutMS=60000
+    )
+    #  No other changes 
+
     db         = client["aqi_db"]
     collection = db["aqi_features"]
 

@@ -90,7 +90,15 @@ def load_features_from_mongodb():
         raise ValueError("MONGODB_URI environment variable not set!")
 
     print("  Connecting to MongoDB...")
-    client     = MongoClient(mongo_uri)
+
+    #  Only change: add timeouts 
+    client = MongoClient(
+        mongo_uri,
+        serverSelectionTimeoutMS=60000,
+        connectTimeoutMS=60000
+    )
+    # End of change 
+
     db         = client["aqi_db"]
     collection = db["aqi_features"]
 
@@ -101,8 +109,6 @@ def load_features_from_mongodb():
     df = df.sort_values('datetime').reset_index(drop=True)
 
     print(f"  Loaded {len(df)} rows from MongoDB")
-
-    # Only use rows where all targets are available
     df = df.dropna(subset=['target_h24', 'target_h48', 'target_h72'])
     df = df.reset_index(drop=True)
 
