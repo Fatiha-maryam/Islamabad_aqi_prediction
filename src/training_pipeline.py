@@ -371,7 +371,7 @@ def train_and_log_horizon(train, test, horizon_name, target_col):
           artifact_path="model",
           signature=signature,
           registered_model_name=registry_name,
-          skops_trusted_types=['catboost.core.CatBoostRegressor']   # ✅ Add this
+          skops_trusted_types=['catboost.core.CatBoostRegressor']   # done added
         )
 
         print(f" Registered as '{registry_name}' in MLflow Registry")
