@@ -7,8 +7,7 @@ Models: XGBoost, LightGBM, CatBoost, RandomForest, StackingRegressor
 Selection: Best model per horizon based on MAE, RMSE, R² (majority wins)
 Registry: DagsHub MLflow Model Registry
 """
-import os
-os.environ["MLFLOW_SKLEARN_USE_SKOPS"] = "false"
+
 import os
 import pickle
 import warnings
@@ -31,7 +30,6 @@ import mlflow.sklearn
 import mlflow.xgboost
 import mlflow.lightgbm
 from mlflow.models.signature import infer_signature
-
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -92,13 +90,11 @@ def load_features_from_mongodb():
 
     print("  Connecting to MongoDB...")
 
-    #  Only change: add timeouts 
     client = MongoClient(
         mongo_uri,
         serverSelectionTimeoutMS=60000,
         connectTimeoutMS=60000
     )
-    # End of change 
 
     db         = client["aqi_db"]
     collection = db["aqi_features"]
@@ -283,7 +279,7 @@ def save_feature_importance(model, model_name, horizon):
         return None
 
 # ============================================
-# TRAIN + LOG TO MLFLOW
+# TRAIN + LOG TO MLFLOW (WITH PYFUNC FIX)
 # ============================================
 def train_and_log_horizon(train, test, horizon_name, target_col):
     """Train all models, log to MLflow, select best, register in registry"""
@@ -344,38 +340,34 @@ def train_and_log_horizon(train, test, horizon_name, target_col):
     # Save feature importance
     fi_path = save_feature_importance(best_model, best_name, horizon_name)
 
-    # Register best model in MLflow Model Registry
-    print(f"\n Registering best model in MLflow Registry...")
+    # ─── Register best model using pyfunc (bypass skops) ───
+    print(f"\n Registering best model in MLflow Registry using pyfunc (pickle)...")
 
     registry_name = f"aqi_model_{horizon_name}"
+    signature = infer_signature(X_train, best_model.predict(X_train))
 
-    with mlflow.start_run(run_name=f"BEST_{horizon_name}_{best_name}") as run:
+    import tempfile
+    import pickle as pkl
+    import os as os_module
 
-        mlflow.log_param("model_name",  best_name)
-        mlflow.log_param("horizon",     horizon_name)
-        mlflow.log_param("feature_cols", str(FEATURE_COLS))
-        mlflow.log_param("trained_at",  datetime.now().strftime('%Y-%m-%d %H:%M'))
+    with tempfile.TemporaryDirectory() as tmpdir:
+        model_path = os_module.path.join(tmpdir, "model.pkl")
+        with open(model_path, "wb") as f:
+            pkl.dump(best_model, f)
 
-        best_metrics = results_df[results_df['model'] == best_name].iloc[0]
-        mlflow.log_metric("mae",  best_metrics['mae'])
-        mlflow.log_metric("rmse", best_metrics['rmse'])
-        mlflow.log_metric("r2",   best_metrics['r2'])
+        # Log as pyfunc model with pickle artifact
+        mlflow.pyfunc.log_model(
+            artifact_path="model",
+            python_model=mlflow.pyfunc.PythonModel(),
+            artifacts={"model": model_path},
+            signature=signature,
+            registered_model_name=registry_name,
+        )
+        print(f" Registered as '{registry_name}' in MLflow Registry (pyfunc/pickle)")
 
-        # Log feature importance plot
+        # Log feature importance plot if exists
         if fi_path:
             mlflow.log_artifact(fi_path)
-
-        # Log model
-        signature = infer_signature(X_train, best_model.predict(X_train))
-        mlflow.sklearn.log_model(
-          best_model,
-          artifact_path="model",
-          signature=signature,
-          registered_model_name=registry_name,
-          skops_trusted_types=['all']   # done added
-        )
-
-        print(f" Registered as '{registry_name}' in MLflow Registry")
 
     # Also save locally as .pkl backup
     save_model_locally(best_model, horizon_name, best_name)
