@@ -7,7 +7,8 @@ Models: XGBoost, LightGBM, CatBoost, RandomForest, StackingRegressor
 Selection: Best model per horizon based on MAE, RMSE, R² (majority wins)
 Registry: DagsHub MLflow Model Registry
 """
-
+import os
+os.environ["MLFLOW_SKLEARN_USE_SKOPS"] = "false"
 import os
 import pickle
 import warnings
