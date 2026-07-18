@@ -124,6 +124,8 @@ Both can also be triggered manually via the GitHub Actions UI.
 - MongoDB stores all historical features – no data is lost.
 - All secrets (MongoDB URI, DagsHub token) are stored as GitHub Actions secrets and Streamlit Cloud secrets – never hard‑coded.
 
+  **Note (2026-06-11):** DagsHub is currently under maintenance; the live dashboard may be temporarily unavailable. It will recover automatically once maintenance is complete.
+
 ##  Author
 
 **Fatiha Maryam**  
