@@ -367,10 +367,11 @@ def train_and_log_horizon(train, test, horizon_name, target_col):
         # Log model
         signature = infer_signature(X_train, best_model.predict(X_train))
         mlflow.sklearn.log_model(
-            best_model,
-            artifact_path="model",
-            signature=signature,
-            registered_model_name=registry_name,
+          best_model,
+          artifact_path="model",
+          signature=signature,
+          registered_model_name=registry_name,
+          skops_trusted_types=['catboost.core.CatBoostRegressor']   # ✅ Add this
         )
 
         print(f" Registered as '{registry_name}' in MLflow Registry")
