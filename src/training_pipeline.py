@@ -350,24 +350,25 @@ def train_and_log_horizon(train, test, horizon_name, target_col):
     import pickle as pkl
     import os as os_module
 
-    with tempfile.TemporaryDirectory() as tmpdir:
-        model_path = os_module.path.join(tmpdir, "model.pkl")
-        with open(model_path, "wb") as f:
-            pkl.dump(best_model, f)
+    with mlflow.start_run(run_name=f"register_{horizon_name}"):          # ← NEW LINE
+        with tempfile.TemporaryDirectory() as tmpdir:
+            model_path = os_module.path.join(tmpdir, "model.pkl")
+            with open(model_path, "wb") as f:
+                pkl.dump(best_model, f)
 
-        # Log as pyfunc model with pickle artifact
-        mlflow.pyfunc.log_model(
-            artifact_path="model",
-            python_model=mlflow.pyfunc.PythonModel(),
-            artifacts={"model": model_path},
-            signature=signature,
-            registered_model_name=registry_name,
-        )
-        print(f" Registered as '{registry_name}' in MLflow Registry (pyfunc/pickle)")
+            # Log as pyfunc model with pickle artifact
+            mlflow.pyfunc.log_model(
+                artifact_path="model",
+                python_model=mlflow.pyfunc.PythonModel(),
+                artifacts={"model": model_path},
+                signature=signature,
+                registered_model_name=registry_name,
+            )
+            print(f" Registered as '{registry_name}' in MLflow Registry (pyfunc/pickle)")
 
-        # Log feature importance plot if exists
-        if fi_path:
-            mlflow.log_artifact(fi_path)
+            # Log feature importance plot if exists
+            if fi_path:
+                mlflow.log_artifact(fi_path)
 
     # Also save locally as .pkl backup
     save_model_locally(best_model, horizon_name, best_name)
@@ -408,6 +409,10 @@ def run_training_pipeline():
     # Setup MLflow
     print("\n[0/4] Setting up MLflow + DagsHub...")
     setup_mlflow()
+
+    # Safety net: close any leftover run from a previous crashed execution
+    if mlflow.active_run():
+        mlflow.end_run()
 
     # Set experiment name
     mlflow.set_experiment("Islamabad_AQI_Prediction")
