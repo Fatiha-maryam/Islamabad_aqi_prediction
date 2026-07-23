@@ -106,7 +106,7 @@ def load_features_from_mongodb():
     df = df.sort_values('datetime').reset_index(drop=True)
 
     print(f"  Loaded {len(df)} rows from MongoDB")
-    df = df.dropna(subset=['target_h24', 'target_h48', 'target_h72'])
+   # df = df.dropna(subset=['target_h24', 'target_h48', 'target_h72'])
     df = df.reset_index(drop=True)
 
     print(f"  After removing incomplete targets: {len(df)} rows")
@@ -123,6 +123,10 @@ def split_data(df, test_size=0.2):
     train     = df.iloc[:split_idx].copy()
     test      = df.iloc[split_idx:].copy()
 
+     # Drop rows without complete targets
+    train = train.dropna(subset=['target_h24', 'target_h48', 'target_h72'])
+    test  = test.dropna(subset=['target_h24', 'target_h48', 'target_h72'])
+    
     print(f"  Train: {len(train)} rows | {train['datetime'].min().date()} → {train['datetime'].max().date()}")
     print(f"  Test : {len(test)} rows  | {test['datetime'].min().date()} → {test['datetime'].max().date()}")
     return train, test
