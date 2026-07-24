@@ -65,7 +65,7 @@ os.makedirs(MODELS_DIR, exist_ok=True)
 
 # =============================================
 # SETUP MLFLOW + DAGSHUB
-# ============================================
+# =============================================
 def setup_mlflow():
     import dagshub
     import mlflow
@@ -102,6 +102,7 @@ def load_features_from_mongodb():
     cursor = collection.find({}, {"_id": 0})
     df     = pd.DataFrame(list(cursor))
 
+    print(f"  DEBUG: rows after cursor: {len(df)}")
     df['datetime'] = pd.to_datetime(df['datetime'])
     df = df.sort_values('datetime').reset_index(drop=True)
 
