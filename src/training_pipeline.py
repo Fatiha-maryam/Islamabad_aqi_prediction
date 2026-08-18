@@ -79,10 +79,18 @@ def setup_mlflow():
     print(f" MLflow tracking URI set to: {mlflow.get_tracking_uri()}")
 
 # ============================================
-# MONGODB — LOAD FEATURES
+# MONGODB — LOAD TRAINING DATA
 # ============================================
 def load_features_from_mongodb():
-    """Load all features from MongoDB into a DataFrame"""
+    """Load training data (features + targets) from MongoDB
+    
+    Plan A Architecture:
+    - Reads from: islamabad_aqi.aqi_training_data
+    - Contains: All features (lags, rolling avg, trends, weather, etc.)
+    - Contains: Complete target columns (target_h24, target_h48, target_h72)
+    - Historical data: Last 72h excluded (targets can't be computed for future)
+    - Ready for training: All rows are complete and labeled
+    """
 
     mongo_uri = os.environ.get("MONGODB_URI")
     if not mongo_uri:
@@ -96,21 +104,28 @@ def load_features_from_mongodb():
         connectTimeoutMS=60000
     )
 
-    db         = client["aqi_db"]
-    collection = db["aqi_features"]
+    db         = client["islamabad_aqi"]
+    collection = db["aqi_training_data"]
 
     cursor = collection.find({}, {"_id": 0})
     df     = pd.DataFrame(list(cursor))
 
-    print(f"  DEBUG: rows after cursor: {len(df)}")
+    print(f"  Rows loaded from cursor: {len(df)}")
     df['datetime'] = pd.to_datetime(df['datetime'])
     df = df.sort_values('datetime').reset_index(drop=True)
 
-    print(f"  Loaded {len(df)} rows from MongoDB")
-   # df = df.dropna(subset=['target_h24', 'target_h48', 'target_h72'])
+    print(f"  Loaded {len(df)} rows from aqi_training_data (Plan A)")
+    
+    # Verify targets exist (aqi_training_data should only have complete rows)
+    missing_targets = df[['target_h24', 'target_h48', 'target_h72']].isna().sum()
+    if missing_targets.sum() > 0:
+        print(f"  ⚠️  Warning: {missing_targets.sum()} missing target values")
+        df = df.dropna(subset=['target_h24', 'target_h48', 'target_h72'])
+        print(f"  After removing incomplete targets: {len(df)} rows")
+    else:
+        print(f"  ✓ All rows have complete targets")
+    
     df = df.reset_index(drop=True)
-
-    print(f"  After removing incomplete targets: {len(df)} rows")
     print(f"  Date range: {df['datetime'].min()} → {df['datetime'].max()}")
     return df
 
@@ -283,6 +298,22 @@ def save_feature_importance(model, model_name, horizon):
         print(f"    Could not save feature importance: {e}")
         return None
 
+
+class AQIPredictor(mlflow.pyfunc.PythonModel):
+    """Wrap the real trained estimator so the saved pyfunc model returns actual AQI predictions."""
+
+    def load_context(self, context):
+        model_path = context.artifacts["model"]
+        with open(model_path, "rb") as f:
+            self.model = pickle.load(f)
+
+    def predict(self, context, model_input):
+        if isinstance(model_input, pd.DataFrame):
+            return self.model.predict(model_input)
+        if isinstance(model_input, dict):
+            return self.model.predict(pd.DataFrame([model_input]))
+        return self.model.predict(model_input)
+
 # ============================================
 # TRAIN + LOG TO MLFLOW (WITH PYFUNC FIX)
 # ============================================
@@ -355,21 +386,21 @@ def train_and_log_horizon(train, test, horizon_name, target_col):
     import pickle as pkl
     import os as os_module
 
-    with mlflow.start_run(run_name=f"register_{horizon_name}"):          # ← NEW LINE
+    with mlflow.start_run(run_name=f"register_{horizon_name}"):
         with tempfile.TemporaryDirectory() as tmpdir:
             model_path = os_module.path.join(tmpdir, "model.pkl")
             with open(model_path, "wb") as f:
                 pkl.dump(best_model, f)
 
-            # Log as pyfunc model with pickle artifact
+            # Log as pyfunc model that delegates predictions to the real trained estimator.
             mlflow.pyfunc.log_model(
                 artifact_path="model",
-                python_model=mlflow.pyfunc.PythonModel(),
+                python_model=AQIPredictor(),
                 artifacts={"model": model_path},
                 signature=signature,
                 registered_model_name=registry_name,
             )
-            print(f" Registered as '{registry_name}' in MLflow Registry (pyfunc/pickle)")
+            print(f" Registered as '{registry_name}' in MLflow Registry (pyfunc wrapper)")
 
             # Log feature importance plot if exists
             if fi_path:
@@ -404,10 +435,17 @@ def save_model_locally(model, horizon_name, model_name):
 # MAIN PIPELINE
 # ============================================
 def run_training_pipeline():
-    """Main training pipeline — runs once daily"""
+    """Main training pipeline — runs once daily
+    
+    Plan A Architecture:
+    - Reads labeled historical data from aqi_training_data
+    - Trains on complete features + targets
+    - Saves models to MLflow registry
+    - Separate from live feature pipeline (aqi_features_v2)
+    """
 
     print("\n" + "="*60)
-    print("TRAINING PIPELINE — ISLAMABAD AQI")
+    print("TRAINING PIPELINE — ISLAMABAD AQI (Plan A)")
     print("="*60)
     print(f"Started at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 

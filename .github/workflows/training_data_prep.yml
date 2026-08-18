@@ -1,0 +1,31 @@
+name: Training Data Preparation
+
+on:
+  schedule:
+    # Every Sunday at 1:00 AM UTC (before training_pipeline at 2:00 AM)
+    - cron: "0 1 * * 0"
+  workflow_dispatch:
+
+jobs:
+  training-data-prep:
+    runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run training data preparation
+        env:
+          MONGO_URI: ${{ secrets.MONGODB_URI }}
+          DB_NAME: islamabad_aqi
+        run: python src/training_data_prep.py

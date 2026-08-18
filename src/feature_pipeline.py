@@ -54,8 +54,8 @@ def get_mongo_collection():
     )
     #  No other changes 
 
-    db         = client["aqi_db"]
-    collection = db["aqi_features"]
+    db         = client["islamabad_aqi"]
+    collection = db["aqi_features_v2"]
 
     collection.create_index("datetime", unique=True)
 
@@ -198,13 +198,12 @@ def create_features(df):
     df['is_rush_hour']  = df['hour'].apply(lambda h: 1 if h in [7,8,9,17,18,19] else 0)
     df['is_smog_season']= df['month'].apply(lambda m: 1 if m in [11,12,1,2] else 0)
 
-    # Target variables
-    df['target_h24'] = df['aqi'].shift(-24)
-    df['target_h48'] = df['aqi'].shift(-48)
-    df['target_h72'] = df['aqi'].shift(-72)
+    # Note: Target variables are NOT computed here
+    # Targets are computed separately for aqi_training_data collection
+    # Feature pipeline stores FEATURES ONLY to aqi_features_v2
 
-    # Only drop NaN from feature columns — NOT from targets
-    # This allows live rows to be stored even without future target values
+    # Drop NaN from feature columns only
+    # Live rows without targets are valid for forecasting
     df = df.dropna(subset=FEATURE_COLS).reset_index(drop=True)
 
     print(f"   After feature engineering: {len(df)} rows")
@@ -215,9 +214,13 @@ def create_features(df):
 # STEP 4: STORE TO MONGODB
 # ============================================
 def store_to_mongodb(df, collection):
-    """Store processed features to MongoDB — skips duplicates"""
+    """Store processed features to MongoDB — skips duplicates
+    
+    IMPORTANT: Only features are stored, NO target columns
+    Targets are managed separately in aqi_training_data collection
+    """
 
-    store_cols = ['datetime'] + FEATURE_COLS + ['target_h24', 'target_h48', 'target_h72']
+    store_cols = ['datetime'] + FEATURE_COLS
     df_store   = df[store_cols].copy()
 
     # Convert datetime to string
@@ -242,45 +245,14 @@ def store_to_mongodb(df, collection):
     return inserted
 
 # ============================================
-# STEP 5: UPDATE PENDING TARGETS
+# NOTE: TARGET UPDATE REMOVED (Plan A Architecture)
 # ============================================
-def update_pending_targets(collection):
-    """
-    Find rows with missing targets and fill them
-    using lag1 of future rows that now exist in MongoDB
-    """
-
-    print("  Updating pending targets...")
-
-    pending = list(collection.find(
-        {"target_h24": None},
-        {"_id": 1, "datetime": 1}
-    ))
-
-    updated = 0
-    for doc in pending:
-        dt = pd.to_datetime(doc['datetime'])
-
-        t24 = collection.find_one({"datetime": str(dt + timedelta(hours=24))})
-        t48 = collection.find_one({"datetime": str(dt + timedelta(hours=48))})
-        t72 = collection.find_one({"datetime": str(dt + timedelta(hours=72))})
-
-        update_fields = {}
-        if t24: update_fields['target_h24'] = t24.get('lag1')
-        if t48: update_fields['target_h48'] = t48.get('lag1')
-        if t72: update_fields['target_h72'] = t72.get('lag1')
-
-        if update_fields:
-            collection.update_one(
-                {"_id": doc['_id']},
-                {"$set": update_fields}
-            )
-            updated += 1
-
-    print(f"  Updated targets for {updated} rows")
+# Targets are no longer computed or updated by feature pipeline.
+# They are managed separately in aqi_training_data collection.
+# This keeps live feature data clean and separate from training labels.
 
 # ============================================
-# STEP 6: MAIN PIPELINE
+# STEP 5: MAIN PIPELINE
 # ============================================
 def run_feature_pipeline(start_date=None, end_date=None):
     """
@@ -323,13 +295,11 @@ def run_feature_pipeline(start_date=None, end_date=None):
     print("\n[5/5] Storing to MongoDB...")
     store_to_mongodb(df_features, collection)
 
-    print("\n[6/5] Updating pending targets...")
-    update_pending_targets(collection)
-
     print("\n" + "="*60)
     print(" FEATURE PIPELINE COMPLETED SUCCESSFULLY")
     print(f"   Rows processed : {len(df_features)}")
-    print(f"   Columns        : {len(df_features.columns)}")
+    print(f"   Columns        : {len(df_features.columns)} (features only, no targets)")
+    print(f"   Database       : islamabad_aqi.aqi_features_v2")
     print(f"   Time           : {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print("="*60)
 
