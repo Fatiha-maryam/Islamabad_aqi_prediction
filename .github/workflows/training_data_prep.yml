@@ -26,6 +26,6 @@ jobs:
 
       - name: Run training data preparation
         env:
-          MONGO_URI: ${{ secrets.MONGODB_URI }}
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
           DB_NAME: islamabad_aqi
         run: python src/training_data_prep.py

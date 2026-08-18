@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-MONGO_URI = os.getenv("MONGODB_URI")
+MONGODB_URI = os.getenv("MONGODB_URI")
 DB_NAME = os.getenv("DB_NAME", "islamabad_aqi")
 BACKUP_FILE = "backup/aqi_features_v1_backup.json"
 TRAINING_COLLECTION = "aqi_training_data"
@@ -73,7 +73,7 @@ def copy_backup_to_training():
             return
         
         # Connect to MongoDB
-        client = MongoClient(MONGO_URI)
+        client = MongoClient(MONGODB_URI)
         db = client[DB_NAME]
         collection = db[TRAINING_COLLECTION]
         

@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # MongoDB Connection
-MONGO_URI = os.getenv("MONGODB_URI")
+MONGODB_URI = os.getenv("MONGODB_URI")
 DB_NAME = os.getenv("DB_NAME", "islamabad_aqi")
 BACKUP_FILE = "backup/aqi_features_v1_backup.json"
 TARGET_COLLECTION = "aqi_features_v2"
@@ -36,7 +36,7 @@ def copy_backup_to_v2():
     """Copy backup data to aqi_features_v2, removing targets"""
     try:
         # Connect to MongoDB
-        client = MongoClient(MONGO_URI)
+        client = MongoClient(MONGODB_URI)
         db = client[DB_NAME]
         collection = db[TARGET_COLLECTION]
         

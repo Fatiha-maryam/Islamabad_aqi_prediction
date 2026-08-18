@@ -14,18 +14,18 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-MONGO_URI = os.getenv("MONGODB_URI")
+MONGODB_URI = os.getenv("MONGODB_URI")
 DB_NAME = os.getenv("DB_NAME", "islamabad_aqi")
 FEATURES_COLLECTION = "aqi_features_v2"
 TRAINING_COLLECTION = "aqi_training_data"
 
 def connect_mongodb():
     """Connect to MongoDB"""
-    if not MONGO_URI:
-        raise ValueError("MONGO_URI environment variable not set!")
+    if not MONGODB_URI:
+        raise ValueError("MONGODB_URI environment variable not set!")
     
     client = MongoClient(
-        MONGO_URI,
+        MONGODB_URI,
         serverSelectionTimeoutMS=60000,
         connectTimeoutMS=60000
     )
@@ -42,7 +42,7 @@ def load_all_features():
     df = pd.DataFrame(list(cursor))
     
     if len(df) == 0:
-        print("❌ No data found in aqi_features_v2!")
+        print(" No data found in aqi_features_v2!")
         return None
     
     df['datetime'] = pd.to_datetime(df['datetime'])
