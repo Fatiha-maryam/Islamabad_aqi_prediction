@@ -24,6 +24,21 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Debug environment
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+        run: |
+          if [ -z "$MONGODB_URI" ]; then
+            echo " ERROR: MONGODB_URI secret is NOT set in GitHub repository!"
+            echo "Go to: https://github.com/Fatiha-maryam/Islamabad_aqi_prediction/settings/secrets/actions"
+            echo "Add secret name: MONGODB_URI"
+            echo "Add secret value: your_mongodb_connection_string"
+            exit 1
+          else
+            echo " MONGODB_URI secret is configured"
+            echo "First 20 chars: ${MONGODB_URI:0:20}..."
+          fi
+
       - name: Run training data preparation
         env:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
