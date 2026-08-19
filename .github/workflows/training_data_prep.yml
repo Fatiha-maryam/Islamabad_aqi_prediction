@@ -43,4 +43,4 @@ jobs:
         env:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
           DB_NAME: islamabad_aqi
-        run: python src/training_data_prep.py
+        run: python src/training_data_preparation.py
