@@ -3,6 +3,3 @@ __pycache__/
 *.pyc
 catboost_info/
 mlruns/
-models/*.pkl
-models/*.png
-models/*.csv
