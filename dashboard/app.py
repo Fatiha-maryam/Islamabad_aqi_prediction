@@ -451,23 +451,27 @@ def load_metrics_for_registered_models():
 #======================
 #       Load Models
 #======================
+import joblib
+from pathlib import Path
+
 @st.cache_resource
 def load_models():
-    setup_mlflow()
+    print(" load_models() called – using local .pkl files")
     models = {}
-    for horizon in ['24h', '48h', '72h']:
+    
+    horizon_files = {
+        '24h': 'best_model_24h.pkl',
+        '48h': 'best_model_48h.pkl',
+        '72h': 'best_model_72h.pkl'
+    }
+    
+    for horizon, filename in horizon_files.items():
         try:
-            model_uri = f"models:/aqi_model_{horizon}/latest"
-            print(f" Loading {horizon} from {model_uri}")
+            model_path = Path(__file__).resolve().parent.parent / "models" / filename
+            print(f" Loading {horizon} from {model_path}")
             
-            #  Use pyfunc loader (models are registered as pyfunc)
-            wrapper = mlflow.pyfunc.load_model(model_uri)
-            
-            # Extract the actual model from the wrapper
-            if hasattr(wrapper, '_model_impl'):
-                model = wrapper._model_impl
-            else:
-                model = wrapper
+            data = joblib.load(model_path)
+            model = data['model'] if isinstance(data, dict) else data
             
             print(f" Loaded {horizon} – type: {type(model)}")
             models[horizon] = {
@@ -479,6 +483,7 @@ def load_models():
         except Exception as e:
             print(f" {horizon} failed: {e}")
             models[horizon] = None
+    
     return models
 # ============================================
 # ALL MODELS METRICS (for comparison chart)
