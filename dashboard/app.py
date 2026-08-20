@@ -453,25 +453,32 @@ def load_metrics_for_registered_models():
 #======================
 @st.cache_resource
 def load_models():
-    print(" load_models() called")
     setup_mlflow()
     models = {}
     for horizon in ['24h', '48h', '72h']:
         try:
             model_uri = f"models:/aqi_model_{horizon}/latest"
             print(f" Loading {horizon} from {model_uri}")
+            
+            #  Use pyfunc loader (models are registered as pyfunc)
             wrapper = mlflow.pyfunc.load_model(model_uri)
-            print(f" Loaded {horizon} – type: {type(wrapper)}")
+            
+            # Extract the actual model from the wrapper
+            if hasattr(wrapper, '_model_impl'):
+                model = wrapper._model_impl
+            else:
+                model = wrapper
+            
+            print(f" Loaded {horizon} – type: {type(model)}")
             models[horizon] = {
-                'model': wrapper,
-                'model_name': 'pyfunc_wrapper',
+                'model': model,
+                'model_name': type(model).__name__,
                 'horizon': horizon,
                 'feature_cols': FEATURE_COLS
             }
         except Exception as e:
             print(f" {horizon} failed: {e}")
             models[horizon] = None
-    print(f" Models loaded: {len([m for m in models.values() if m is not None])} of 3")
     return models
 # ============================================
 # ALL MODELS METRICS (for comparison chart)
