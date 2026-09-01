@@ -154,9 +154,6 @@ All pipelines can also be triggered manually via the GitHub Actions UI.
 - **24h / 48h / 72h forecasts** – using the latest registered models
 - **Health alerts** – colour‑coded AQI categories and recommendations
 - **7‑day trend chart** – historical AQI with prediction markers
-- **Model performance table** – best model per horizon (MAE, RMSE, R²)
-- **MAE comparison bar chart** – all models side‑by‑side
-- **Feature importance** – bar plots for each horizon
 
 ---
 
