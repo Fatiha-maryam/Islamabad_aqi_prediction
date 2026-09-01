@@ -121,9 +121,13 @@ cd Islamabad_aqi_prediction
 # 2. Install dependencies
 pip install -r requirements.txt
 
-# 3. Set environment variables (create .env file)
-MONGODB_URI=your_mongodb_uri
-MLFLOW_TRACKING_USERNAME=Fatiha-maryam
+# 3. Environment Variables
+
+Create a `.env` file in the root directory with the following variables:
+
+```env
+MONGODB_URI=your_mongodb_connection_string
+MLFLOW_TRACKING_USERNAME=your_dagshub_username
 MLFLOW_TRACKING_PASSWORD=your_dagshub_token
 
 # 4. Run the dashboard
