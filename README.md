@@ -10,7 +10,7 @@
 
 ##  Live Demo
 
- [**https://islamabad-aqi-forecast.streamlit.app**](https://islamabad-aqi-prediction.streamlit.app/)
+[https://islamabad-aqi-forecast.streamlit.app/]
 
 ---
 
